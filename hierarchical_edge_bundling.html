@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上海证券交易所房地产持有型ABS市场 - 层次边束绑网络图</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #fafbfc;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .node {
+            cursor: pointer;
+        }
+        
+        .node text {
+            font-size: 11px;
+            fill: #2d3748;
+            pointer-events: none;
+        }
+        
+        .node--leaf text {
+            font-size: 10px;
+            fill: #4a5568;
+        }
+        
+        .link {
+            fill: none;
+            stroke-opacity: 0.4;
+            stroke-width: 1.5;
+        }
+        
+        .link:hover {
+            stroke-opacity: 0.8;
+        }
+        
+        .legend {
+            font-size: 12px;
+            fill: #4a5568;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .controls label {
+            margin-right: 20px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+        
+        .controls input[type="range"] {
+            width: 200px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>上海证券交易所房地产持有型ABS市场<br>层次边束绑网络分析图</h1>
+        
+        <div class="controls">
+            <label>张力系数: <input type="range" id="tension-slider" min="0" max="1" step="0.1" value="0.85"> <span id="tension-value">0.85</span></label>
+            <label>连接密度: <input type="range" id="connection-slider" min="0.1" max="1" step="0.1" value="0.6"> <span id="connection-value">0.6</span></label>
+        </div>
+        
+        <div class="chart-container">
+            <svg id="chart" width="1000" height="800"></svg>
+        </div>
+        
+        <div class="chart-container">
+            <h3 style="margin-top: 0;">数据统计</h3>
+            <div id="stats"></div>
+        </div>
+    </div>
+
+    <script>
+        // 数据解析和处理
+        const csvData = `Product_Name,Issuer,Exchange,Issuance_Date,Scale_Billion_Yuan,Underlying_Asset_Type,Asset_Category,Status,Third_Party_Certification,Lead_Underwriter,Special_Features,Credit_Rating
+中信证券-万国数据2025年第1期数据中心持有型不动产资产支持专项计划（可持续挂钩）,万国数据,Shanghai Stock Exchange,2025-04,16.092,数据中心资产,持有型不动产ABS,已上市,可持续挂钩认证,中信证券,全国首单数据中心持有型不动产ABS,N/A
+建信住房租赁基金持有型不动产资产支持专项计划,建信住房租赁基金,Shanghai Stock Exchange,2024,N/A,住房租赁资产,持有型不动产ABS,在审,N/A,N/A,住房租赁领域,N/A
+华泰-中交路建清西大桥持有型不动产资产支持专项计划,中交路建,Shanghai Stock Exchange,2023-12-25,N/A,基础设施不动产,持有型不动产ABS,已发行,N/A,华泰证券,首只持有型REITs产品,N/A
+兴业-广州地铁收费权绿色资产支持专项计划,广州地铁,Shanghai Stock Exchange,2017-08-11,50,地铁收费权,绿色ABS,已发行,绿色认证,兴业证券,绿色轨道交通,N/A
+开源-北京地铁票款收费权1号绿色资产支持专项计划,北京地铁,Shanghai Stock Exchange,2019-06-18,30,地铁票款收费权,绿色ABS,已发行,绿色认证,开源证券,绿色基础设施,N/A
+平安-漳州长运公交经营收费收益权绿色资产支持专项计划,漳州长运,Shanghai Stock Exchange,2018-07-20,3.5,公交经营收费权,绿色ABS,已发行,绿色认证,平安证券,公共交通绿色项目,N/A
+平安-贵阳公交经营收费收益权绿色资产支持专项计划,贵阳公交,Shanghai Stock Exchange,2017-03-24,26.5,基础设施收费,绿色ABS,已发行,北京中财绿融,平安证券,公交绿色项目,N/A
+无锡交通产业集团公交经营收费收益权资产支持专项计划,无锡交通,Shanghai Stock Exchange,2016-09-28,19.8,公交经营收费收益权,绿色ABS,已发行,中节能咨询,中山证券,首单非上市公司绿色ABS,N/A
+中投证券-武汉地铁信托受益权一期绿色资产支持专项计划,武汉地铁,Shanghai Stock Exchange,2017-07-18,15,信托受益权,绿色ABS,已发行,N/A,中投证券,全国首单轨道交通绿色ABS,N/A
+中国中投证券-南京地铁信托受益权一期绿色资产支持专项计划,南京地铁,Shanghai Stock Exchange,2018-05-18,12,信托受益权,绿色ABS,已发行,联合赤道,中投证券,轨道交通建设,N/A
+农银穗盈-金风科技风电收费收益权绿色资产支持专项计划,新疆金风科技,Shanghai Stock Exchange,2016-08-03,12.75,风电收费收益权,绿色ABS,已发行,挪威船级社(DNV GL),农银汇理,首单绿色资产支持证券,N/A
+中信建投-中节能太阳能八期绿色资产支持专项计划,中节能太阳能,Shanghai Stock Exchange,2019-03-29,10,太阳能发电收费权,绿色ABS,已发行,绿色认证,中信建投,清洁能源项目,N/A
+华泰资管-葛洲坝水电上网收费权绿色资产支持专项计划,中国葛洲坝,Shanghai Stock Exchange,2016-11-22,8,水电上网收费权,绿色ABS,已发行,北京中财绿融,华泰证券,水电站再融资,N/A
+西江股份电力上网收费权绿色资产支持专项计划,西江股份,Shanghai Stock Exchange,2019-02-27,7,水电电力上网收费权,绿色ABS,已发行,东方金诚,N/A,水电收费权,N/A
+中银-融达二期绿色资产支持专项计划,中国银河,Shanghai Stock Exchange,2018-11-09,20,污水处理收费权,绿色ABS,已发行,绿色认证,中银证券,环保水务项目,N/A
+中信建投-首创水务绿色资产支持专项计划,首创水务,Shanghai Stock Exchange,2017-12-08,5,污水处理收费权,绿色ABS,已发行,绿色认证,中信建投,水务环保项目,N/A
+南通市经济技术开发区污水处理收费收益权绿色资产支持专项计划,南通开发区,Shanghai Stock Exchange,2017-09-15,5.1,污水处理收费收益权,绿色ABS,已发行,北京中财绿融,东吴证券,江苏省首单污水处理收费权绿色ABS,N/A
+渤海汇金-康达环保污水处理项目绿色资产支持专项计划,重庆康达环保,Shanghai Stock Exchange,2018-08-10,3.6,污水处理费收费收益权,绿色ABS,已发行,中诚信,渤海汇金,重庆市首单绿色认证ABS,N/A
+华能-民生-鸿山热电电费收费权绿色资产支持专项计划,华能鸿山热电,Shanghai Stock Exchange,2019-01-25,3.89,电费收费权,绿色ABS,已发行,绿色认证,民生证券,清洁供热项目,N/A
+华能-安信-宿迁生物质热电绿色资产支持专项计划,华能宿迁生物质热电,Shanghai Stock Exchange,2017-06-23,2.5,生物质发电收费权,绿色ABS,已发行,绿色认证,安信证券,生物质能源项目,N/A
+广发-广晟东江环保绿色资产支持专项计划,广晟东江环保,Shanghai Stock Exchange,2016-12-28,3.2,危废处理收费权,绿色ABS,已发行,绿色认证,广发证券,危废处理环保项目,N/A
+德邦-海通恒信车融租赁绿色资产支持专项计划,海通恒信,Shanghai Stock Exchange,2018-08-31,4.93,融资租赁债权,绿色ABS,已发行,绿色认证,德邦证券,绿色交通设备租赁,N/A
+国联华光供热收益权绿色资产支持专项计划,无锡华光锅炉,Shanghai Stock Exchange,2018-07-27,2.65,供热收费收益权,绿色ABS,已发行,N/A,国联证券,绿色产业项目建设运营,N/A
+中国中投证券-国富保理-首创股份1期绿色供应链金融资产支持专项计划,首创股份,Shanghai Stock Exchange,2019-06-06,0.96,应收账款债权,绿色ABS,已发行,绿色认证,中投证券,绿色供应链金融,N/A`;
+
+        // 解析CSV数据
+        const data = d3.csvParse(csvData);
+        
+        // 数据清理和预处理
+        const cleanedData = data.map(d => ({
+            ...d,
+            Scale_Billion_Yuan: d.Scale_Billion_Yuan === 'N/A' ? 0 : +d.Scale_Billion_Yuan,
+            Lead_Underwriter: d.Lead_Underwriter === 'N/A' ? '其他' : d.Lead_Underwriter,
+            Third_Party_Certification: d.Third_Party_Certification === 'N/A' ? '无认证' : d.Third_Party_Certification
+        }));
+
+        // 构建层次结构
+        function createHierarchy() {
+            const hierarchy = {
+                name: "ABS市场",
+                children: [
+                    {
+                        name: "资产类别",
+                        children: []
+                    },
+                    {
+                        name: "承销商",
+                        children: []
+                    },
+                    {
+                        name: "底层资产",
+                        children: []
+                    },
+                    {
+                        name: "认证机构",
+                        children: []
+                    },
+                    {
+                        name: "发行主体",
+                        children: []
+                    }
+                ]
+            };
+
+            // 分类数据
+            const categories = {
+                "资产类别": {},
+                "承销商": {},
+                "底层资产": {},
+                "认证机构": {},
+                "发行主体": {}
+            };
+
+            cleanedData.forEach(d => {
+                // 资产类别
+                if (!categories["资产类别"][d.Asset_Category]) {
+                    categories["资产类别"][d.Asset_Category] = [];
+                }
+                categories["资产类别"][d.Asset_Category].push(d.Product_Name);
+
+                // 承销商
+                if (!categories["承销商"][d.Lead_Underwriter]) {
+                    categories["承销商"][d.Lead_Underwriter] = [];
+                }
+                categories["承销商"][d.Lead_Underwriter].push(d.Product_Name);
+
+                // 底层资产
+                if (!categories["底层资产"][d.Underlying_Asset_Type]) {
+                    categories["底层资产"][d.Underlying_Asset_Type] = [];
+                }
+                categories["底层资产"][d.Underlying_Asset_Type].push(d.Product_Name);
+
+                // 认证机构
+                if (!categories["认证机构"][d.Third_Party_Certification]) {
+                    categories["认证机构"][d.Third_Party_Certification] = [];
+                }
+                categories["认证机构"][d.Third_Party_Certification].push(d.Product_Name);
+
+                // 发行主体
+                if (!categories["发行主体"][d.Issuer]) {
+                    categories["发行主体"][d.Issuer] = [];
+                }
+                categories["发行主体"][d.Issuer].push(d.Product_Name);
+            });
+
+            // 构建层次结构
+            Object.keys(categories).forEach(mainCategory => {
+                const categoryNode = hierarchy.children.find(c => c.name === mainCategory);
+                Object.keys(categories[mainCategory]).forEach(subCategory => {
+                    const products = categories[mainCategory][subCategory];
+                    categoryNode.children.push({
+                        name: subCategory,
+                        children: products.map(productName => ({
+                            name: productName,
+                            data: cleanedData.find(d => d.Product_Name === productName)
+                        }))
+                    });
+                });
+            });
+
+            return hierarchy;
+        }
+
+        // 创建连接关系
+        function createConnections() {
+            const connections = [];
+            
+            cleanedData.forEach(product => {
+                // 产品与承销商的连接
+                if (product.Lead_Underwriter !== '其他') {
+                    connections.push({
+                        source: product.Product_Name,
+                        target: product.Lead_Underwriter,
+                        type: 'underwriter'
+                    });
+                }
+                
+                // 产品与认证机构的连接
+                if (product.Third_Party_Certification !== '无认证') {
+                    connections.push({
+                        source: product.Product_Name,
+                        target: product.Third_Party_Certification,
+                        type: 'certification'
+                    });
+                }
+                
+                // 产品与发行主体的连接
+                connections.push({
+                    source: product.Product_Name,
+                    target: product.Issuer,
+                    type: 'issuer'
+                });
+            });
+            
+            return connections;
+        }
+
+        // D3.js 层次边束绑实现
+        class HierarchicalEdgeBundling {
+            constructor(container, width, height) {
+                this.container = container;
+                this.width = width;
+                this.height = height;
+                this.radius = Math.min(width, height) / 2 - 100;
+                
+                this.svg = d3.select(container)
+                    .attr("width", width)
+                    .attr("height", height);
+                
+                this.g = this.svg.append("g")
+                    .attr("transform", `translate(${width/2},${height/2})`);
+                
+                this.tension = 0.85;
+                this.connectionDensity = 0.6;
+                
+                this.tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+            }
+            
+            setTension(tension) {
+                this.tension = tension;
+                this.update();
+            }
+            
+            setConnectionDensity(density) {
+                this.connectionDensity = density;
+                this.update();
+            }
+            
+            render(hierarchy, connections) {
+                this.hierarchy = hierarchy;
+                this.connections = connections;
+                
+                // 创建层次布局
+                const root = d3.hierarchy(hierarchy);
+                const cluster = d3.cluster().size([2 * Math.PI, this.radius]);
+                cluster(root);
+                
+                this.nodes = root.descendants();
+                this.leaves = root.leaves();
+                
+                // 创建路径查找映射
+                this.nodeMap = new Map();
+                this.nodes.forEach(d => {
+                    this.nodeMap.set(d.data.name, d);
+                });
+                
+                this.update();
+            }
+            
+            update() {
+                this.g.selectAll("*").remove();
+                
+                // 绘制连接线
+                this.drawConnections();
+                
+                // 绘制节点
+                this.drawNodes();
+                
+                // 绘制标签
+                this.drawLabels();
+            }
+            
+            drawConnections() {
+                const validConnections = this.connections.filter(conn => 
+                    this.nodeMap.has(conn.source) && this.nodeMap.has(conn.target)
+                );
+                
+                // 根据连接密度过滤连接
+                const selectedConnections = validConnections
+                    .slice(0, Math.floor(validConnections.length * this.connectionDensity));
+                
+                const linkGroups = this.g.selectAll(".link-group")
+                    .data(selectedConnections)
+                    .enter().append("g")
+                    .attr("class", "link-group");
+                
+                linkGroups.each((d, i, nodes) => {
+                    const sourceNode = this.nodeMap.get(d.source);
+                    const targetNode = this.nodeMap.get(d.target);
+                    
+                    if (sourceNode && targetNode) {
+                        const path = this.createBundledPath(sourceNode, targetNode);
+                        
+                        d3.select(nodes[i]).append("path")
+                            .attr("class", "link")
+                            .attr("d", path)
+                            .attr("stroke", this.getConnectionColor(d.type))
+                            .on("mouseover", (event) => {
+                                this.tooltip.transition()
+                                    .duration(200)
+                                    .style("opacity", .9);
+                                this.tooltip.html(`${d.source} → ${d.target}<br/>类型: ${this.getConnectionTypeLabel(d.type)}`)
+                                    .style("left", (event.pageX + 10) + "px")
+                                    .style("top", (event.pageY - 28) + "px");
+                            })
+                            .on("mouseout", () => {
+                                this.tooltip.transition()
+                                    .duration(500)
+                                    .style("opacity", 0);
+                            });
+                    }
+                });
+            }
+            
+            createBundledPath(source, target) {
+                // 找到最低公共祖先
+                const lca = this.findLCA(source, target);
+                
+                // 创建路径点
+                const pathPoints = [];
+                
+                // 从源到LCA
+                let current = source;
+                const sourceToLCA = [];
+                while (current !== lca) {
+                    sourceToLCA.push(current);
+                    current = current.parent;
+                }
+                sourceToLCA.push(lca);
+                
+                // 从LCA到目标
+                current = target;
+                const targetToLCA = [];
+                while (current !== lca) {
+                    targetToLCA.push(current);
+                    current = current.parent;
+                }
+                
+                // 组合路径
+                pathPoints.push(...sourceToLCA);
+                pathPoints.push(...targetToLCA.reverse());
+                
+                // 移除重复的LCA
+                if (pathPoints.length > 1 && pathPoints[sourceToLCA.length - 1] === pathPoints[sourceToLCA.length]) {
+                    pathPoints.splice(sourceToLCA.length, 1);
+                }
+                
+                // 生成路径字符串
+                return this.generateCurvePath(pathPoints);
+            }
+            
+            findLCA(node1, node2) {
+                const ancestors1 = [];
+                let current = node1;
+                while (current) {
+                    ancestors1.push(current);
+                    current = current.parent;
+                }
+                
+                current = node2;
+                while (current) {
+                    if (ancestors1.includes(current)) {
+                        return current;
+                    }
+                    current = current.parent;
+                }
+                
+                return null;
+            }
+            
+            generateCurvePath(pathPoints) {
+                if (pathPoints.length < 2) return "";
+                
+                const points = pathPoints.map(d => ({
+                    x: d.y * Math.cos(d.x - Math.PI / 2),
+                    y: d.y * Math.sin(d.x - Math.PI / 2)
+                }));
+                
+                if (points.length === 2) {
+                    // 简单贝塞尔曲线
+                    const start = points[0];
+                    const end = points[1];
+                    const mid = {
+                        x: (start.x + end.x) / 2,
+                        y: (start.y + end.y) / 2
+                    };
+                    
+                    // 向中心弯曲
+                    const centerDirection = {
+                        x: -mid.x,
+                        y: -mid.y
+                    };
+                    const length = Math.sqrt(centerDirection.x * centerDirection.x + centerDirection.y * centerDirection.y);
+                    if (length > 0) {
+                        centerDirection.x /= length;
+                        centerDirection.y /= length;
+                    }
+                    
+                    const controlPoint = {
+                        x: mid.x + centerDirection.x * this.tension * 50,
+                        y: mid.y + centerDirection.y * this.tension * 50
+                    };
+                    
+                    return `M${start.x},${start.y}Q${controlPoint.x},${controlPoint.y},${end.x},${end.y}`;
+                } else {
+                    // 多点路径
+                    let path = `M${points[0].x},${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        path += `L${points[i].x},${points[i].y}`;
+                    }
+                    return path;
+                }
+            }
+            
+            drawNodes() {
+                const nodeGroups = this.g.selectAll(".node")
+                    .data(this.nodes)
+                    .enter().append("g")
+                    .attr("class", "node")
+                    .attr("transform", d => `translate(${d.y * Math.cos(d.x - Math.PI / 2)},${d.y * Math.sin(d.x - Math.PI / 2)})`);
+                
+                nodeGroups.append("circle")
+                    .attr("r", d => this.getNodeRadius(d))
+                    .attr("fill", d => this.getNodeColor(d))
+                    .attr("stroke", "white")
+                    .attr("stroke-width", 2)
+                    .on("mouseover", (event, d) => {
+                        this.tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        this.tooltip.html(this.getNodeTooltip(d))
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", () => {
+                        this.tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+            }
+            
+            drawLabels() {
+                const labelGroups = this.g.selectAll(".label")
+                    .data(this.nodes.filter(d => d.depth <= 2))
+                    .enter().append("g")
+                    .attr("class", "label")
+                    .attr("transform", d => {
+                        const angle = d.x - Math.PI / 2;
+                        return `translate(${d.y * Math.cos(angle)},${d.y * Math.sin(angle)})rotate(${angle * 180 / Math.PI})`;
+                    });
+                
+                labelGroups.append("text")
+                    .attr("dy", "0.32em")
+                    .attr("x", d => d.depth === 0 ? 0 : (d.x < Math.PI ? 6 : -6))
+                    .attr("text-anchor", d => d.depth === 0 ? "middle" : (d.x < Math.PI ? "start" : "end"))
+                    .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
+                    .text(d => d.data.name)
+                    .style("font-size", d => d.depth === 0 ? "14px" : "11px")
+                    .style("font-weight", d => d.depth <= 1 ? "bold" : "normal");
+            }
+            
+            getNodeRadius(d) {
+                if (d.depth === 0) return 8;
+                if (d.depth === 1) return 6;
+                if (d.depth === 2) return 4;
+                return 3;
+            }
+            
+            getNodeColor(d) {
+                const colors = {
+                    0: "#2d3748",
+                    1: "#4f46e5",
+                    2: "#7c3aed",
+                    3: "#ec4899"
+                };
+                return colors[d.depth] || "#94a3b8";
+            }
+            
+            getConnectionColor(type) {
+                const colors = {
+                    'underwriter': "#3b82f6",
+                    'certification': "#10b981",
+                    'issuer': "#f59e0b"
+                };
+                return colors[type] || "#6b7280";
+            }
+            
+            getConnectionTypeLabel(type) {
+                const labels = {
+                    'underwriter': "承销关系",
+                    'certification': "认证关系",
+                    'issuer': "发行关系"
+                };
+                return labels[type] || "其他关系";
+            }
+            
+            getNodeTooltip(d) {
+                if (d.data.data) {
+                    const product = d.data.data;
+                    return `<strong>${product.Product_Name}</strong><br/>
+                            发行人: ${product.Issuer}<br/>
+                            规模: ${product.Scale_Billion_Yuan}亿元<br/>
+                            承销商: ${product.Lead_Underwriter}<br/>
+                            资产类型: ${product.Underlying_Asset_Type}`;
+                }
+                return d.data.name;
+            }
+        }
+
+        // 初始化可视化
+        const hierarchy = createHierarchy();
+        const connections = createConnections();
+        
+        const chart = new HierarchicalEdgeBundling("#chart", 1000, 800);
+        chart.render(hierarchy, connections);
+        
+        // 控制器事件
+        document.getElementById('tension-slider').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('tension-value').textContent = value;
+            chart.setTension(value);
+        });
+        
+        document.getElementById('connection-slider').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('connection-value').textContent = value;
+            chart.setConnectionDensity(value);
+        });
+        
+        // 统计信息
+        const totalProducts = cleanedData.length;
+        const totalScale = cleanedData.reduce((sum, d) => sum + d.Scale_Billion_Yuan, 0);
+        const greenProducts = cleanedData.filter(d => d.Asset_Category === '绿色ABS').length;
+        const uniqueUnderwriters = [...new Set(cleanedData.map(d => d.Lead_Underwriter))].length;
+        
+        document.getElementById('stats').innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div><strong>总产品数:</strong> ${totalProducts} 只</div>
+                <div><strong>总发行规模:</strong> ${totalScale.toFixed(2)} 亿元</div>
+                <div><strong>绿色ABS:</strong> ${greenProducts} 只</div>
+                <div><strong>承销机构:</strong> ${uniqueUnderwriters} 家</div>
+            </div>
+        `;
+    </script>
+</body>
+</html> 

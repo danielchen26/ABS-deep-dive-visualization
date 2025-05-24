@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上海证券交易所ABS市场 - 生命之树可视化</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #fafbfc;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            border-right: 1px solid #e1e5e9;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        
+        .sidebar h2 {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            color: #2d3748;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        
+        .feature-group {
+            margin-bottom: 25px;
+        }
+        
+        .feature-group h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        
+        .feature-option {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+        
+        .feature-option:hover {
+            background: #f7fafc;
+            border-color: #e2e8f0;
+        }
+        
+        .feature-option.selected {
+            background: #ebf4ff;
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+        
+        .feature-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .feature-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .stats-section {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stats-section h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 12px;
+        }
+        
+        .stat-label {
+            color: #718096;
+        }
+        
+        .stat-value {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        .chart-area {
+            flex: 1;
+            position: relative;
+            background: #fff;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .branch {
+            fill: none;
+            stroke: #cbd5e0;
+            stroke-width: 1.5;
+            transition: all 0.3s ease;
+        }
+        
+        .branch:hover {
+            stroke: #4f46e5;
+            stroke-width: 2.5;
+        }
+        
+        .node {
+            cursor: pointer;
+        }
+        
+        .node:hover {
+        }
+        
+        .node-circle {
+            /* 移除固定的fill颜色，让JavaScript动态设置 */
+            stroke: #cbd5e0;
+            stroke-width: 2;
+        }
+        
+        .node-label {
+            font-size: 11px;
+            fill: #4a5568;
+            text-anchor: start;
+            pointer-events: none;
+        }
+        
+        .node-label.internal {
+            font-size: 10px;
+            fill: #718096;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 250px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        .node.highlighted {
+            filter: drop-shadow(0 0 8px #ffd700);
+        }
+        
+        .node.highlighted .node-circle {
+            stroke: #ffd700;
+            stroke-width: 3px;
+        }
+        
+        .node.highlighted .node-label {
+            font-weight: bold;
+            fill: #d97706;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>ABS市场分析控制台</h2>
+            
+            <input type="text" class="search-box" placeholder="搜索产品或机构..." id="search-input">
+            
+            <div class="stats-section">
+                <h4>市场概览</h4>
+                <div class="stat-item">
+                    <span class="stat-label">总产品数</span>
+                    <span class="stat-value" id="total-products">24</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">总规模</span>
+                    <span class="stat-value" id="total-scale">262.5亿元</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">绿色ABS</span>
+                    <span class="stat-value" id="green-products">21</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">承销机构</span>
+                    <span class="stat-value" id="underwriter-count">15</span>
+                </div>
+            </div>
+            
+            <div class="feature-group">
+                <h3>着色特征</h3>
+                <div id="color-features"></div>
+            </div>
+            
+            <div class="feature-group">
+                <h3>大小特征</h3>
+                <div id="size-features"></div>
+            </div>
+            
+            <div class="feature-group">
+                <h3>过滤选项</h3>
+                <div id="filter-options"></div>
+            </div>
+        </div>
+        
+        <div class="chart-area">
+            <div class="chart-container">
+                <svg id="tree-svg"></svg>
+                <div class="tooltip" id="tooltip"></div>
+                <div class="legend" id="legend"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CSV数据
+        const csvData = `Product_Name,Issuer,Exchange,Issuance_Date,Scale_Billion_Yuan,Underlying_Asset_Type,Asset_Category,Status,Third_Party_Certification,Lead_Underwriter,Special_Features,Credit_Rating
+中信证券-万国数据2025年第1期数据中心持有型不动产资产支持专项计划（可持续挂钩）,万国数据,Shanghai Stock Exchange,2025-04,16.092,数据中心资产,持有型不动产ABS,已上市,可持续挂钩认证,中信证券,全国首单数据中心持有型不动产ABS,N/A
+建信住房租赁基金持有型不动产资产支持专项计划,建信住房租赁基金,Shanghai Stock Exchange,2024,N/A,住房租赁资产,持有型不动产ABS,在审,N/A,N/A,住房租赁领域,N/A
+华泰-中交路建清西大桥持有型不动产资产支持专项计划,中交路建,Shanghai Stock Exchange,2023-12-25,N/A,基础设施不动产,持有型不动产ABS,已发行,N/A,华泰证券,首只持有型REITs产品,N/A
+兴业-广州地铁收费权绿色资产支持专项计划,广州地铁,Shanghai Stock Exchange,2017-08-11,50,地铁收费权,绿色ABS,已发行,绿色认证,兴业证券,绿色轨道交通,N/A
+开源-北京地铁票款收费权1号绿色资产支持专项计划,北京地铁,Shanghai Stock Exchange,2019-06-18,30,地铁票款收费权,绿色ABS,已发行,绿色认证,开源证券,绿色基础设施,N/A
+平安-漳州长运公交经营收费收益权绿色资产支持专项计划,漳州长运,Shanghai Stock Exchange,2018-07-20,3.5,公交经营收费权,绿色ABS,已发行,绿色认证,平安证券,公共交通绿色项目,N/A
+平安-贵阳公交经营收费收益权绿色资产支持专项计划,贵阳公交,Shanghai Stock Exchange,2017-03-24,26.5,基础设施收费,绿色ABS,已发行,北京中财绿融,平安证券,公交绿色项目,N/A
+无锡交通产业集团公交经营收费收益权资产支持专项计划,无锡交通,Shanghai Stock Exchange,2016-09-28,19.8,公交经营收费收益权,绿色ABS,已发行,中节能咨询,中山证券,首单非上市公司绿色ABS,N/A
+中投证券-武汉地铁信托受益权一期绿色资产支持专项计划,武汉地铁,Shanghai Stock Exchange,2017-07-18,15,信托受益权,绿色ABS,已发行,N/A,中投证券,全国首单轨道交通绿色ABS,N/A
+中国中投证券-南京地铁信托受益权一期绿色资产支持专项计划,南京地铁,Shanghai Stock Exchange,2018-05-18,12,信托受益权,绿色ABS,已发行,联合赤道,中投证券,轨道交通建设,N/A
+农银穗盈-金风科技风电收费收益权绿色资产支持专项计划,新疆金风科技,Shanghai Stock Exchange,2016-08-03,12.75,风电收费收益权,绿色ABS,已发行,挪威船级社(DNV GL),农银汇理,首单绿色资产支持证券,N/A
+中信建投-中节能太阳能八期绿色资产支持专项计划,中节能太阳能,Shanghai Stock Exchange,2019-03-29,10,太阳能发电收费权,绿色ABS,已发行,绿色认证,中信建投,清洁能源项目,N/A
+华泰资管-葛洲坝水电上网收费权绿色资产支持专项计划,中国葛洲坝,Shanghai Stock Exchange,2016-11-22,8,水电上网收费权,绿色ABS,已发行,北京中财绿融,华泰证券,水电站再融资,N/A
+西江股份电力上网收费权绿色资产支持专项计划,西江股份,Shanghai Stock Exchange,2019-02-27,7,水电电力上网收费权,绿色ABS,已发行,东方金诚,N/A,水电收费权,N/A
+中银-融达二期绿色资产支持专项计划,中国银河,Shanghai Stock Exchange,2018-11-09,20,污水处理收费权,绿色ABS,已发行,绿色认证,中银证券,环保水务项目,N/A
+中信建投-首创水务绿色资产支持专项计划,首创水务,Shanghai Stock Exchange,2017-12-08,5,污水处理收费权,绿色ABS,已发行,绿色认证,中信建投,水务环保项目,N/A
+南通市经济技术开发区污水处理收费收益权绿色资产支持专项计划,南通开发区,Shanghai Stock Exchange,2017-09-15,5.1,污水处理收费收益权,绿色ABS,已发行,北京中财绿融,东吴证券,江苏省首单污水处理收费权绿色ABS,N/A
+渤海汇金-康达环保污水处理项目绿色资产支持专项计划,重庆康达环保,Shanghai Stock Exchange,2018-08-10,3.6,污水处理费收费收益权,绿色ABS,已发行,中诚信,渤海汇金,重庆市首单绿色认证ABS,N/A
+华能-民生-鸿山热电电费收费权绿色资产支持专项计划,华能鸿山热电,Shanghai Stock Exchange,2019-01-25,3.89,电费收费权,绿色ABS,已发行,绿色认证,民生证券,清洁供热项目,N/A
+华能-安信-宿迁生物质热电绿色资产支持专项计划,华能宿迁生物质热电,Shanghai Stock Exchange,2017-06-23,2.5,生物质发电收费权,绿色ABS,已发行,绿色认证,安信证券,生物质能源项目,N/A
+广发-广晟东江环保绿色资产支持专项计划,广晟东江环保,Shanghai Stock Exchange,2016-12-28,3.2,危废处理收费权,绿色ABS,已发行,绿色认证,广发证券,危废处理环保项目,N/A
+德邦-海通恒信车融租赁绿色资产支持专项计划,海通恒信,Shanghai Stock Exchange,2018-08-31,4.93,融资租赁债权,绿色ABS,已发行,绿色认证,德邦证券,绿色交通设备租赁,N/A
+国联华光供热收益权绿色资产支持专项计划,无锡华光锅炉,Shanghai Stock Exchange,2018-07-27,2.65,供热收费收益权,绿色ABS,已发行,N/A,国联证券,绿色产业项目建设运营,N/A
+中国中投证券-国富保理-首创股份1期绿色供应链金融资产支持专项计划,首创股份,Shanghai Stock Exchange,2019-06-06,0.96,应收账款债权,绿色ABS,已发行,绿色认证,中投证券,绿色供应链金融,N/A`;
+
+        // 解析和清理数据
+        const data = d3.csvParse(csvData);
+        const cleanedData = data.map(d => ({
+            ...d,
+            Scale_Billion_Yuan: d.Scale_Billion_Yuan === 'N/A' ? 0 : +d.Scale_Billion_Yuan,
+            Lead_Underwriter: d.Lead_Underwriter === 'N/A' ? '其他' : d.Lead_Underwriter,
+            Third_Party_Certification: d.Third_Party_Certification === 'N/A' ? '无认证' : d.Third_Party_Certification
+        }));
+
+        // 特征定义
+        const features = {
+            color: [
+                { id: 'Asset_Category', name: '资产类别', type: 'categorical' },
+                { id: 'Lead_Underwriter', name: '承销商', type: 'categorical' },
+                { id: 'Underlying_Asset_Type', name: '底层资产', type: 'categorical' },
+                { id: 'Third_Party_Certification', name: '认证机构', type: 'categorical' },
+                { id: 'Status', name: '发行状态', type: 'categorical' },
+                { id: 'Scale_Billion_Yuan', name: '发行规模', type: 'continuous' }
+            ],
+            size: [
+                { id: 'Scale_Billion_Yuan', name: '发行规模', type: 'continuous' },
+                { id: 'none', name: '统一大小', type: 'none' }
+            ],
+            filter: [
+                { id: 'Asset_Category', name: '按资产类别', type: 'categorical' },
+                { id: 'Lead_Underwriter', name: '按承销商', type: 'categorical' },
+                { id: 'Status', name: '按发行状态', type: 'categorical' }
+            ]
+        };
+
+        // 初始化颜色方案 - 使用简单可靠的颜色映射
+        function initializeColorSchemes() {
+            console.log(`🎨 [INIT] Initializing color schemes...`);
+            
+            const schemes = {};
+            
+            // 资产类别 - 简单明确的颜色
+            schemes.Asset_Category = function(value) {
+                const colorMap = {
+                    '绿色ABS': '#10b981',
+                    '持有型不动产ABS': '#3b82f6'
+                };
+                return colorMap[value] || '#6b7280';
+            };
+            
+            // 承销商 - 不同的明亮颜色
+            schemes.Lead_Underwriter = function(value) {
+                const colorMap = {
+                    '中信证券': '#8b5cf6',
+                    '华泰证券': '#f59e0b', 
+                    '平安证券': '#ef4444',
+                    '中投证券': '#06b6d4',
+                    '中信建投': '#84cc16',
+                    '兴业证券': '#f97316',
+                    '开源证券': '#ec4899',
+                    '农银汇理': '#14b8a6',
+                    '中银证券': '#f43f5e',
+                    '东吴证券': '#a855f7',
+                    '渤海汇金': '#22c55e',
+                    '民生证券': '#f97316',
+                    '安信证券': '#3b82f6',
+                    '广发证券': '#eab308',
+                    '德邦证券': '#f59e0b',
+                    '国联证券': '#06b6d4',
+                    '中山证券': '#84cc16',
+                    '其他': '#6b7280'
+                };
+                return colorMap[value] || '#6b7280';
+            };
+            
+            // 底层资产类型 - 丰富的颜色调色板
+            schemes.Underlying_Asset_Type = function(value) {
+                const colorMap = {
+                    '数据中心资产': '#8b5cf6',
+                    '住房租赁资产': '#3b82f6',
+                    '基础设施不动产': '#10b981',
+                    '地铁收费权': '#f59e0b',
+                    '地铁票款收费权': '#ef4444',
+                    '公交经营收费权': '#06b6d4',
+                    '基础设施收费': '#84cc16',
+                    '公交经营收费收益权': '#f97316',
+                    '信托受益权': '#ec4899',
+                    '风电收费收益权': '#14b8a6',
+                    '太阳能发电收费权': '#f43f5e',
+                    '水电上网收费权': '#a855f7',
+                    '水电电力上网收费权': '#22c55e',
+                    '污水处理收费权': '#f97316',
+                    '污水处理收费收益权': '#3b82f6',
+                    '污水处理费收费收益权': '#eab308',
+                    '电费收费权': '#f59e0b',
+                    '生物质发电收费权': '#06b6d4',
+                    '危废处理收费权': '#84cc16',
+                    '融资租赁债权': '#ec4899',
+                    '供热收费收益权': '#14b8a6',
+                    '应收账款债权': '#f43f5e'
+                };
+                return colorMap[value] || '#6b7280';
+            };
+            
+            // 认证机构 - 绿色系为主
+            schemes.Third_Party_Certification = function(value) {
+                const colorMap = {
+                    '可持续挂钩认证': '#10b981',
+                    '绿色认证': '#059669',
+                    '北京中财绿融': '#047857',
+                    '中节能咨询': '#065f46',
+                    '联合赤道': '#fbbf24',
+                    '挪威船级社(DNV GL)': '#f59e0b',
+                    '东方金诚': '#d97706',
+                    '中诚信': '#ef4444',
+                    '无认证': '#6b7280'
+                };
+                return colorMap[value] || '#6b7280';
+            };
+            
+            // 发行状态 - 状态指示色
+            schemes.Status = function(value) {
+                const colorMap = {
+                    '已发行': '#10b981',
+                    '已上市': '#3b82f6', 
+                    '在审': '#f59e0b'
+                };
+                return colorMap[value] || '#6b7280';
+            };
+            
+            // 发行规模 - 连续色彩
+            schemes.Scale_Billion_Yuan = function(value) {
+                if (!value || value === 0) return '#e5e7eb';
+                
+                // 使用简单的线性映射
+                const maxScale = 50; // 最大规模约50亿
+                const ratio = Math.min(value / maxScale, 1);
+                
+                // 从浅蓝到深蓝的渐变
+                const r = Math.round(59 + (16 - 59) * ratio);
+                const g = Math.round(130 + (185 - 130) * ratio);
+                const b = Math.round(246 + (248 - 246) * ratio);
+                
+                return `rgb(${r}, ${g}, ${b})`;
+            };
+            
+            console.log(`🎨 [INIT] Color schemes initialized:`, Object.keys(schemes));
+            return schemes;
+        }
+
+        // 颜色方案
+        const colorSchemes = initializeColorSchemes();
+
+        // 测试颜色方案
+        function testColorSchemes() {
+            console.log(`🧪 [TEST] Testing color schemes...`);
+            
+            // 测试资产类别
+            console.log(`🧪 Asset_Category colors:`);
+            console.log(`  绿色ABS: ${colorSchemes.Asset_Category('绿色ABS')}`);
+            console.log(`  持有型不动产ABS: ${colorSchemes.Asset_Category('持有型不动产ABS')}`);
+            
+            // 测试承销商
+            console.log(`🧪 Lead_Underwriter colors:`);
+            console.log(`  中信证券: ${colorSchemes.Lead_Underwriter('中信证券')}`);
+            console.log(`  华泰证券: ${colorSchemes.Lead_Underwriter('华泰证券')}`);
+            
+            // 测试认证机构
+            console.log(`🧪 Third_Party_Certification colors:`);
+            console.log(`  绿色认证: ${colorSchemes.Third_Party_Certification('绿色认证')}`);
+            console.log(`  无认证: ${colorSchemes.Third_Party_Certification('无认证')}`);
+        }
+        
+        // 执行测试
+        testColorSchemes();
+
+        // Tree of Life 可视化类
+        class TreeOfLifeVisualization {
+            constructor() {
+                this.width = window.innerWidth - 280;
+                this.height = window.innerHeight;
+                this.radius = Math.min(this.width, this.height) / 2 - 150; // 增加边距
+                
+                this.currentColorFeature = 'Asset_Category';
+                this.currentSizeFeature = 'Scale_Billion_Yuan';
+                this.currentFilter = null;
+                this.searchTerm = '';
+                
+                this.svg = d3.select("#tree-svg")
+                    .attr("width", this.width)
+                    .attr("height", this.height);
+                
+                this.g = this.svg.append("g")
+                    .attr("transform", `translate(${this.width/2},${this.height/2})`);
+                
+                this.tooltip = d3.select("#tooltip");
+                
+                // 防重叠参数
+                this.minNodeDistance = 30;
+                this.minLabelDistance = 15;
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupSidebar();
+                this.createTreeStructure();
+                this.render();
+                this.setupEventListeners();
+            }
+            
+            setupSidebar() {
+                // 设置颜色特征选项
+                const colorContainer = d3.select("#color-features");
+                features.color.forEach(feature => {
+                    const option = colorContainer.append("div")
+                        .attr("class", "feature-option")
+                        .classed("selected", feature.id === this.currentColorFeature);
+                    
+                    const color = this.getFeatureColor(feature.id);
+                    option.append("div")
+                        .attr("class", "feature-color")
+                        .style("background", color);
+                    
+                    option.append("span")
+                        .attr("class", "feature-label")
+                        .text(feature.name);
+                    
+                    option.on("click", () => {
+                        console.log(`🎨 Color feature changed to: ${feature.id}`);
+                        colorContainer.selectAll(".feature-option").classed("selected", false);
+                        option.classed("selected", true);
+                        this.currentColorFeature = feature.id;
+                        
+                        console.log(`🎨 Current color scheme available:`, !!colorSchemes[feature.id]);
+                        this.updateVisualization();
+                    });
+                });
+                
+                // 设置大小特征选项
+                const sizeContainer = d3.select("#size-features");
+                features.size.forEach(feature => {
+                    const option = sizeContainer.append("div")
+                        .attr("class", "feature-option")
+                        .classed("selected", feature.id === this.currentSizeFeature);
+                    
+                    option.append("div")
+                        .attr("class", "feature-color")
+                        .style("background", "#cbd5e0");
+                    
+                    option.append("span")
+                        .attr("class", "feature-label")
+                        .text(feature.name);
+                    
+                    option.on("click", () => {
+                        sizeContainer.selectAll(".feature-option").classed("selected", false);
+                        option.classed("selected", true);
+                        this.currentSizeFeature = feature.id;
+                        this.updateVisualization();
+                    });
+                });
+                
+                // 设置过滤选项
+                const filterContainer = d3.select("#filter-options");
+                features.filter.forEach(feature => {
+                    const option = filterContainer.append("div")
+                        .attr("class", "feature-option");
+                    
+                    option.append("div")
+                        .attr("class", "feature-color")
+                        .style("background", "#e2e8f0");
+                    
+                    option.append("span")
+                        .attr("class", "feature-label")
+                        .text(feature.name);
+                    
+                    option.on("click", () => {
+                        const isSelected = option.classed("selected");
+                        filterContainer.selectAll(".feature-option").classed("selected", false);
+                        if (!isSelected) {
+                            option.classed("selected", true);
+                            this.currentFilter = feature.id;
+                        } else {
+                            this.currentFilter = null;
+                        }
+                        this.updateVisualization();
+                    });
+                });
+            }
+            
+            getFeatureColor(featureId) {
+                // 获取特征的示例颜色用于sidebar显示
+                if (colorSchemes[featureId]) {
+                    if (featureId === 'Asset_Category') {
+                        return colorSchemes[featureId]('绿色ABS');
+                    } else if (featureId === 'Lead_Underwriter') {
+                        return colorSchemes[featureId]('中信证券');
+                    } else if (featureId === 'Underlying_Asset_Type') {
+                        return colorSchemes[featureId]('数据中心资产');
+                    } else if (featureId === 'Third_Party_Certification') {
+                        return colorSchemes[featureId]('绿色认证');
+                    } else if (featureId === 'Status') {
+                        return colorSchemes[featureId]('已发行');
+                    } else if (featureId === 'Scale_Billion_Yuan') {
+                        return colorSchemes[featureId](25);
+                    }
+                }
+                return "#cbd5e0";
+            }
+            
+            getNodeColor(d) {
+                const feature = this.currentColorFeature;
+                
+                console.log(`🎨 [COLOR] Getting color for node: ${d.data.name}, type: ${d.data.type}, feature: ${feature}`);
+                
+                // 根节点特殊处理
+                if (d.data.type === 'root') {
+                    console.log(`🎨 [COLOR] Root node, returning light gray`);
+                    return "#f8fafc";
+                }
+                
+                let colorValue = null;
+                
+                // 1. 产品节点：直接从数据获取特征值
+                if (d.data.type === 'product' && d.data.data) {
+                    colorValue = d.data.data[feature];
+                    console.log(`🎨 [COLOR] Product node, feature value: ${colorValue}`);
+                }
+                // 2. 中间节点：根据节点类型和当前特征匹配
+                else {
+                    // 如果节点类型与当前特征完全匹配，使用节点名称
+                    if ((d.data.type === 'category' && feature === 'Asset_Category') ||
+                        (d.data.type === 'underwriter' && feature === 'Lead_Underwriter') ||
+                        (d.data.type === 'asset_type' && feature === 'Underlying_Asset_Type') ||
+                        (d.data.type === 'certification' && feature === 'Third_Party_Certification') ||
+                        (d.data.type === 'status' && feature === 'Status')) {
+                        colorValue = d.data.name;
+                        console.log(`🎨 [COLOR] Direct type match, using node name: ${colorValue}`);
+                    }
+                    // 否则使用聚合数据的主导值
+                    else if (d.data.aggregatedData && d.data.aggregatedData.dominantValue) {
+                        colorValue = d.data.aggregatedData.dominantValue;
+                        console.log(`🎨 [COLOR] Using dominant value: ${colorValue}`);
+                    }
+                }
+                
+                // 3. 获取颜色
+                if (colorValue && colorValue !== 'N/A' && colorSchemes[feature]) {
+                    const color = colorSchemes[feature](colorValue);
+                    console.log(`🎨 [COLOR] ✅ Final color: ${color} for value: ${colorValue}`);
+                    return color;
+                }
+                
+                // 4. 发行规模特殊处理
+                if (feature === 'Scale_Billion_Yuan' && d.data.aggregatedData) {
+                    const value = d.data.aggregatedData.totalScale || 0;
+                    if (value > 0) {
+                        const color = colorSchemes[feature](value);
+                        console.log(`🎨 [COLOR] ✅ Scale color: ${color} for value: ${value}`);
+                        return color;
+                    }
+                }
+                
+                console.log(`🎨 [COLOR] ❌ No color found, using default`);
+                return "#e5e7eb";
+            }
+            
+            createTreeStructure() {
+                // 创建层次结构，增加间距以防止重叠
+                const hierarchy = {
+                    name: "ABS生态系统",
+                    type: 'root',
+                    children: []
+                };
+                
+                const feature = this.currentColorFeature;
+                
+                if (feature === 'Asset_Category') {
+                    this.createHierarchyByAssetCategory(hierarchy);
+                } else if (feature === 'Lead_Underwriter') {
+                    this.createHierarchyByUnderwriter(hierarchy);
+                } else if (feature === 'Underlying_Asset_Type') {
+                    this.createHierarchyByAssetType(hierarchy);
+                } else if (feature === 'Third_Party_Certification') {
+                    this.createHierarchyByCertification(hierarchy);
+                } else if (feature === 'Status') {
+                    this.createHierarchyByStatus(hierarchy);
+                } else {
+                    this.createHierarchyByAssetCategory(hierarchy);
+                }
+                
+                this.hierarchyData = hierarchy;
+            }
+            
+            createHierarchyByAssetCategory(hierarchy) {
+                const assetGroups = d3.group(cleanedData, d => d.Asset_Category);
+                
+                assetGroups.forEach((products, assetCategory) => {
+                    const assetNode = {
+                        name: assetCategory,
+                        type: 'category',
+                        value: assetCategory,
+                        aggregatedData: this.calculateAggregatedData(products),
+                        children: []
+                    };
+                    
+                    const underwriterGroups = d3.group(products, d => d.Lead_Underwriter);
+                    underwriterGroups.forEach((underwriterProducts, underwriter) => {
+                        const underwriterNode = {
+                            name: underwriter,
+                            type: 'underwriter',
+                            value: underwriter,
+                            aggregatedData: this.calculateAggregatedData(underwriterProducts),
+                            children: underwriterProducts.map(product => ({
+                                name: product.Product_Name,
+                                type: 'product',
+                                value: product[this.currentColorFeature] || product.Asset_Category,
+                                data: product,
+                                aggregatedData: { 
+                                    totalScale: product.Scale_Billion_Yuan,
+                                    count: 1,
+                                    avgScale: product.Scale_Billion_Yuan
+                                }
+                            }))
+                        };
+                        assetNode.children.push(underwriterNode);
+                    });
+                    
+                    hierarchy.children.push(assetNode);
+                });
+            }
+            
+            createHierarchyByUnderwriter(hierarchy) {
+                const underwriterGroups = d3.group(cleanedData, d => d.Lead_Underwriter);
+                
+                underwriterGroups.forEach((products, underwriter) => {
+                    const underwriterNode = {
+                        name: underwriter,
+                        type: 'underwriter',
+                        value: underwriter,
+                        aggregatedData: this.calculateAggregatedData(products),
+                        children: []
+                    };
+                    
+                    const assetGroups = d3.group(products, d => d.Asset_Category);
+                    assetGroups.forEach((assetProducts, assetCategory) => {
+                        const assetNode = {
+                            name: assetCategory,
+                            type: 'category',
+                            value: assetCategory,
+                            aggregatedData: this.calculateAggregatedData(assetProducts),
+                            children: assetProducts.map(product => ({
+                                name: product.Product_Name,
+                                type: 'product',
+                                value: product[this.currentColorFeature] || product.Lead_Underwriter,
+                                data: product,
+                                aggregatedData: { 
+                                    totalScale: product.Scale_Billion_Yuan,
+                                    count: 1,
+                                    avgScale: product.Scale_Billion_Yuan
+                                }
+                            }))
+                        };
+                        underwriterNode.children.push(assetNode);
+                    });
+                    
+                    hierarchy.children.push(underwriterNode);
+                });
+            }
+            
+            createHierarchyByAssetType(hierarchy) {
+                const assetTypeGroups = d3.group(cleanedData, d => d.Underlying_Asset_Type);
+                
+                assetTypeGroups.forEach((products, assetType) => {
+                    const assetTypeNode = {
+                        name: assetType,
+                        type: 'asset_type',
+                        value: assetType,
+                        aggregatedData: this.calculateAggregatedData(products),
+                        children: []
+                    };
+                    
+                    const assetGroups = d3.group(products, d => d.Asset_Category);
+                    assetGroups.forEach((assetProducts, assetCategory) => {
+                        const assetNode = {
+                            name: assetCategory,
+                            type: 'category',
+                            value: assetCategory,
+                            aggregatedData: this.calculateAggregatedData(assetProducts),
+                            children: assetProducts.map(product => ({
+                                name: product.Product_Name,
+                                type: 'product',
+                                value: product[this.currentColorFeature] || product.Underlying_Asset_Type,
+                                data: product,
+                                aggregatedData: { 
+                                    totalScale: product.Scale_Billion_Yuan,
+                                    count: 1,
+                                    avgScale: product.Scale_Billion_Yuan
+                                }
+                            }))
+                        };
+                        assetTypeNode.children.push(assetNode);
+                    });
+                    
+                    hierarchy.children.push(assetTypeNode);
+                });
+            }
+            
+            createHierarchyByCertification(hierarchy) {
+                const certGroups = d3.group(cleanedData, d => d.Third_Party_Certification);
+                
+                certGroups.forEach((products, certification) => {
+                    const certNode = {
+                        name: certification,
+                        type: 'certification',
+                        value: certification,
+                        aggregatedData: this.calculateAggregatedData(products),
+                        children: []
+                    };
+                    
+                    const assetGroups = d3.group(products, d => d.Asset_Category);
+                    assetGroups.forEach((assetProducts, assetCategory) => {
+                        const assetNode = {
+                            name: assetCategory,
+                            type: 'category',
+                            value: assetCategory,
+                            aggregatedData: this.calculateAggregatedData(assetProducts),
+                            children: assetProducts.map(product => ({
+                                name: product.Product_Name,
+                                type: 'product',
+                                value: product[this.currentColorFeature] || product.Third_Party_Certification,
+                                data: product,
+                                aggregatedData: { 
+                                    totalScale: product.Scale_Billion_Yuan,
+                                    count: 1,
+                                    avgScale: product.Scale_Billion_Yuan
+                                }
+                            }))
+                        };
+                        certNode.children.push(assetNode);
+                    });
+                    
+                    hierarchy.children.push(certNode);
+                });
+            }
+            
+            createHierarchyByStatus(hierarchy) {
+                const statusGroups = d3.group(cleanedData, d => d.Status);
+                
+                statusGroups.forEach((products, status) => {
+                    const statusNode = {
+                        name: status,
+                        type: 'status',
+                        value: status,
+                        aggregatedData: this.calculateAggregatedData(products),
+                        children: []
+                    };
+                    
+                    const assetGroups = d3.group(products, d => d.Asset_Category);
+                    assetGroups.forEach((assetProducts, assetCategory) => {
+                        const assetNode = {
+                            name: assetCategory,
+                            type: 'category',
+                            value: assetCategory,
+                            aggregatedData: this.calculateAggregatedData(assetProducts),
+                            children: assetProducts.map(product => ({
+                                name: product.Product_Name,
+                                type: 'product',
+                                value: product[this.currentColorFeature] || product.Status,
+                                data: product,
+                                aggregatedData: { 
+                                    totalScale: product.Scale_Billion_Yuan,
+                                    count: 1,
+                                    avgScale: product.Scale_Billion_Yuan
+                                }
+                            }))
+                        };
+                        statusNode.children.push(assetNode);
+                    });
+                    
+                    hierarchy.children.push(statusNode);
+                });
+            }
+            
+            calculateAggregatedData(products) {
+                const totalScale = products.reduce((sum, d) => sum + d.Scale_Billion_Yuan, 0);
+                const count = products.length;
+                const avgScale = totalScale / count;
+                
+                // 计算当前特征的主要值（众数）
+                const featureValues = products
+                    .map(d => d[this.currentColorFeature])
+                    .filter(v => v && v !== 'N/A' && v !== null && v !== undefined);
+                
+                console.log(`📊 [AGGREGATED] Calculating for ${products.length} products, feature: ${this.currentColorFeature}`);
+                console.log(`📊 [AGGREGATED] Feature values:`, featureValues);
+                
+                // 如果没有有效的特征值，返回基本聚合数据
+                if (featureValues.length === 0) {
+                    console.log(`📊 [AGGREGATED] No valid feature values found`);
+                    return {
+                        totalScale,
+                        count,
+                        avgScale,
+                        dominantValue: null,
+                        products,
+                        featureDistribution: {}
+                    };
+                }
+                
+                // 统计每个值的出现次数
+                const valueCounts = {};
+                featureValues.forEach(v => {
+                    valueCounts[v] = (valueCounts[v] || 0) + 1;
+                });
+                
+                // 找到出现次数最多的值（众数）
+                const dominantValue = Object.keys(valueCounts).reduce((a, b) => 
+                    valueCounts[a] > valueCounts[b] ? a : b
+                );
+                
+                console.log(`📊 [AGGREGATED] Value counts:`, valueCounts);
+                console.log(`📊 [AGGREGATED] Dominant value: ${dominantValue}`);
+                
+                return {
+                    totalScale,
+                    count,
+                    avgScale,
+                    dominantValue,
+                    products,
+                    featureDistribution: valueCounts
+                };
+            }
+            
+            render() {
+                // 重新创建树结构以反映当前特征
+                this.createTreeStructure();
+                
+                // 创建层次布局，增加分离度以防止重叠
+                const root = d3.hierarchy(this.hierarchyData);
+                
+                const cluster = d3.cluster()
+                    .size([2 * Math.PI, this.radius])
+                    .separation((a, b) => {
+                        // 增加节点间分离度，防止重叠
+                        const baseSeparation = (a.parent == b.parent ? 1 : 2) / a.depth;
+                        // 根据节点类型和子节点数量调整分离度
+                        const nodeFactor = Math.max(1, (a.children?.length || 1) * 0.3);
+                        return baseSeparation * nodeFactor * 1.5; // 增加1.5倍分离度
+                    });
+                
+                cluster(root);
+                
+                // 应用防碰撞算法
+                this.nodes = root.descendants();
+                this.links = root.links();
+                this.applyCollisionDetection();
+                
+                // 直接更新可视化元素，避免循环调用
+                this.updateBranches();
+                this.updateNodes();
+                this.updateLegend();
+                this.updateSidebarColors();
+            }
+            
+            applyCollisionDetection() {
+                // 简单的碰撞检测和位置调整
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const nodeA = this.nodes[i];
+                        const nodeB = this.nodes[j];
+                        
+                        // 转换为笛卡尔坐标
+                        const posA = this.project(nodeA.x, nodeA.y);
+                        const posB = this.project(nodeB.x, nodeB.y);
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(posA.x - posB.x, 2) + Math.pow(posA.y - posB.y, 2)
+                        );
+                        
+                        // 如果距离太近，调整位置
+                        if (distance < this.minNodeDistance && distance > 0) {
+                            const angle = Math.atan2(posB.y - posA.y, posB.x - posA.x);
+                            const adjustDistance = (this.minNodeDistance - distance) / 2;
+                            
+                            // 调整节点B的位置
+                            const newX = posB.x + Math.cos(angle) * adjustDistance;
+                            const newY = posB.y + Math.sin(angle) * adjustDistance;
+                            
+                            // 转换回极坐标
+                            const newRadius = Math.sqrt(newX * newX + newY * newY);
+                            const newAngle = Math.atan2(newY, newX) + Math.PI / 2;
+                            
+                            nodeB.x = newAngle < 0 ? newAngle + 2 * Math.PI : newAngle;
+                            nodeB.y = Math.min(newRadius, this.radius);
+                        }
+                    }
+                }
+            }
+            
+            updateVisualization() {
+                console.log(`🔄 [UPDATE] Starting visualization update for feature: ${this.currentColorFeature}`);
+                
+                // 1. 重新创建树结构以反映新的特征选择
+                this.createTreeStructure();
+                
+                // 2. 重新计算布局
+                const root = d3.hierarchy(this.hierarchyData);
+                const cluster = d3.cluster()
+                    .size([2 * Math.PI, this.radius])
+                    .separation((a, b) => {
+                        const baseSeparation = (a.parent == b.parent ? 1 : 2) / a.depth;
+                        const nodeFactor = Math.max(1, (a.children?.length || 1) * 0.3);
+                        return baseSeparation * nodeFactor * 1.5;
+                    });
+                
+                cluster(root);
+                this.nodes = root.descendants();
+                this.links = root.links();
+                this.applyCollisionDetection();
+                
+                console.log(`🔄 [UPDATE] Created ${this.nodes.length} nodes and ${this.links.length} links`);
+                
+                // 3. 更新可视化元素
+                this.updateBranches();
+                this.updateNodes();
+                this.updateLegend();
+                this.updateSidebarColors();
+                
+                console.log(`🔄 [UPDATE] Visualization update completed`);
+            }
+            
+            updateBranches() {
+                const linkGenerator = d3.linkRadial()
+                    .angle(d => d.x)
+                    .radius(d => d.y);
+                
+                const branches = this.g.selectAll(".branch")
+                    .data(this.links);
+                
+                branches.enter()
+                    .append("path")
+                    .attr("class", "branch")
+                    .merge(branches)
+                    .transition()
+                    .duration(750)
+                    .attr("d", linkGenerator)
+                    .attr("stroke", d => this.getBranchColor(d))
+                    .attr("stroke-width", d => this.getBranchWidth(d))
+                    .attr("stroke-opacity", d => this.getBranchOpacity(d));
+                
+                branches.exit().remove();
+            }
+            
+            updateNodes() {
+                const nodeGroups = this.g.selectAll(".node")
+                    .data(this.nodes, d => d.data.name);
+                
+                const nodeEnter = nodeGroups.enter()
+                    .append("g")
+                    .attr("class", "node");
+                
+                // 立即为新节点设置颜色，不等待transition
+                const newCircles = nodeEnter.append("circle")
+                    .attr("class", "node-circle")
+                    .attr("r", d => this.getNodeSize(d))
+                    .attr("fill", d => {
+                        const color = this.getNodeColor(d);
+                        console.log(`🎨 [NEW NODE] Setting node ${d.data.name} to color: ${color}`);
+                        return color;
+                    })
+                    .attr("stroke", d => this.getNodeStrokeColor(d))
+                    .attr("stroke-width", d => this.getNodeStrokeWidth(d))
+                    .attr("fill-opacity", d => this.getNodeOpacity(d));
+                
+                nodeEnter.append("text")
+                    .attr("class", "node-label");
+                
+                const nodeUpdate = nodeEnter.merge(nodeGroups);
+                
+                nodeUpdate
+                    .transition()
+                    .duration(750)
+                    .attr("transform", d => {
+                        const angle = (d.x - Math.PI / 2);
+                        return `translate(${d.y * Math.cos(angle)}, ${d.y * Math.sin(angle)})`;
+                    });
+                
+                // 确保颜色正确应用到节点
+                nodeUpdate.select(".node-circle")
+                    .transition()
+                    .duration(750)
+                    .attr("r", d => this.getNodeSize(d))
+                    .attr("fill", d => {
+                        const color = this.getNodeColor(d);
+                        console.log(`🎨 [NODE UPDATE] Setting node ${d.data.name} to color: ${color}`);
+                        return color;
+                    })
+                    .attr("stroke", d => this.getNodeStrokeColor(d))
+                    .attr("stroke-width", d => this.getNodeStrokeWidth(d))
+                    .attr("fill-opacity", d => this.getNodeOpacity(d));
+                
+                // 改进文字标签位置，防止重叠
+                nodeUpdate.select(".node-label")
+                    .attr("dy", "0.32em")
+                    .attr("x", d => {
+                        // 根据节点大小动态调整文字距离
+                        const nodeRadius = this.getNodeSize(d);
+                        const textDistance = nodeRadius + 6;
+                        return d.x < Math.PI ? textDistance : -textDistance;
+                    })
+                    .attr("text-anchor", d => d.x < Math.PI ? "start" : "end")
+                    .attr("transform", d => {
+                        // 改进文字旋转逻辑
+                        const angle = (d.x - Math.PI / 2) * 180 / Math.PI;
+                        // 确保文字在合理的角度范围内
+                        if (d.x > Math.PI / 4 && d.x < 3 * Math.PI / 4) {
+                            return `rotate(${angle})`;
+                        } else if (d.x > 5 * Math.PI / 4 && d.x < 7 * Math.PI / 4) {
+                            return `rotate(${angle + 180})`;
+                        } else {
+                            return d.x < Math.PI ? `rotate(${angle})` : `rotate(${angle + 180})`;
+                        }
+                    })
+                    .classed("internal", d => d.data.type !== 'product')
+                    .text(d => this.getNodeLabel(d))
+                    .style("font-size", d => this.getNodeLabelSize(d))
+                    .style("font-weight", d => d.data.type === 'root' ? "bold" : "normal")
+                    .style("fill", d => this.getNodeLabelColor(d));
+                
+                // 添加安全的事件监听，避免颤抖
+                nodeUpdate
+                    .on("mouseover.tooltip", (event, d) => {
+                        // 移除任何现有的scale transform，防止颤抖
+                        d3.select(event.currentTarget).select(".node-circle")
+                            .transition()
+                            .duration(150)
+                            .attr("r", d => this.getNodeSize(d) * 1.2)
+                            .attr("stroke-width", d => this.getNodeStrokeWidth(d) + 1);
+                        
+                        this.showTooltip(event, d);
+                    })
+                    .on("mouseout.tooltip", (event, d) => {
+                        // 恢复原始大小
+                        d3.select(event.currentTarget).select(".node-circle")
+                            .transition()
+                            .duration(150)
+                            .attr("r", d => this.getNodeSize(d))
+                            .attr("stroke-width", d => this.getNodeStrokeWidth(d));
+                        
+                        this.hideTooltip();
+                    });
+                
+                nodeGroups.exit().remove();
+                
+                // 强制重绘，确保颜色正确显示
+                console.log(`🎨 [NODE UPDATE] Updated ${nodeUpdate.size()} nodes`);
+            }
+            
+            getNodeLabelColor(d) {
+                // 为不同类型的节点使用不同的文字颜色
+                const colors = {
+                    'root': "#1f2937",
+                    'category': "#374151",
+                    'underwriter': "#4b5563",
+                    'asset_type': "#6b7280",
+                    'certification': "#6b7280",
+                    'status': "#6b7280",
+                    'product': "#9ca3af"
+                };
+                return colors[d.data.type] || "#4a5568";
+            }
+            
+            getNodeSize(d) {
+                const baseSize = {
+                    'root': 12,
+                    'category': 10,
+                    'underwriter': 8,
+                    'asset_type': 6,
+                    'certification': 6,
+                    'status': 6,
+                    'product': 5
+                };
+                
+                let size = baseSize[d.data.type] || 5;
+                
+                // 根据大小特征调整
+                if (this.currentSizeFeature !== 'none' && d.data.aggregatedData) {
+                    const value = d.data.aggregatedData.totalScale || 0;
+                    if (value > 0) {
+                        const maxScale = d3.max(cleanedData, d => d.Scale_Billion_Yuan);
+                        const sizeMultiplier = 1 + (value / maxScale) * 1.5;
+                        size *= sizeMultiplier;
+                    }
+                }
+                
+                return Math.max(size, 3);
+            }
+            
+            getNodeStrokeColor(d) {
+                if (d.data.type === 'root') return "#4f46e5";
+                // 使用简单的灰色边框，避免重复颜色计算
+                return "#cbd5e0";
+            }
+            
+            getNodeStrokeWidth(d) {
+                const strokeWidths = {
+                    'root': 3,
+                    'category': 2.5,
+                    'underwriter': 2,
+                    'asset_type': 1.5,
+                    'certification': 1.5,
+                    'status': 1.5,
+                    'product': 1
+                };
+                return strokeWidths[d.data.type] || 1;
+            }
+            
+            getNodeOpacity(d) {
+                const opacities = {
+                    'root': 1,
+                    'category': 0.9,
+                    'underwriter': 0.8,
+                    'asset_type': 0.75,
+                    'certification': 0.75,
+                    'status': 0.75,
+                    'product': 0.85
+                };
+                return opacities[d.data.type] || 0.8;
+            }
+            
+            getNodeLabel(d) {
+                const name = d.data.name;
+                const maxLength = {
+                    'root': 12,
+                    'category': 10,
+                    'underwriter': 8,
+                    'asset_type': 12,
+                    'certification': 10,
+                    'status': 8,
+                    'product': 15
+                };
+                
+                const limit = maxLength[d.data.type] || 15;
+                if (name.length > limit) {
+                    return name.substring(0, limit - 3) + "...";
+                }
+                return name;
+            }
+            
+            getNodeLabelSize(d) {
+                const sizes = {
+                    'root': "13px",
+                    'category': "11px",
+                    'underwriter': "10px",
+                    'asset_type': "9px",
+                    'certification': "9px",
+                    'status': "9px",
+                    'product': "8px"
+                };
+                return sizes[d.data.type] || "9px";
+            }
+            
+            getBranchColor(d) {
+                return this.getNodeColor(d.target);
+            }
+            
+            getBranchWidth(d) {
+                const widths = {
+                    'root': 3,
+                    'category': 2.5,
+                    'underwriter': 2,
+                    'asset_type': 1.5,
+                    'certification': 1.5,
+                    'status': 1.5,
+                    'product': 1
+                };
+                
+                let width = widths[d.target.data.type] || 1;
+                
+                // 根据数据量调整粗细
+                if (d.target.data.aggregatedData && d.target.data.aggregatedData.totalScale) {
+                    const maxScale = d3.max(cleanedData, d => d.Scale_Billion_Yuan);
+                    const scale = d.target.data.aggregatedData.totalScale;
+                    width *= (1 + (scale / maxScale) * 0.5);
+                }
+                
+                return Math.max(width, 0.5);
+            }
+            
+            getBranchOpacity(d) {
+                const opacities = {
+                    'root': 1,
+                    'category': 0.8,
+                    'underwriter': 0.7,
+                    'asset_type': 0.6,
+                    'certification': 0.6,
+                    'status': 0.6,
+                    'product': 0.5
+                };
+                return opacities[d.target.data.type] || 0.6;
+            }
+            
+            project(x, y) {
+                const angle = (x - Math.PI / 2);
+                return {
+                    x: y * Math.cos(angle),
+                    y: y * Math.sin(angle)
+                };
+            }
+            
+            updateLegend() {
+                const legend = d3.select("#legend");
+                legend.selectAll("*").remove();
+                
+                const featureName = features.color.find(f => f.id === this.currentColorFeature)?.name || this.currentColorFeature;
+                legend.append("h4").text(`图例 - ${featureName}`);
+                
+                const feature = this.currentColorFeature;
+                console.log(`🎨 [LEGEND] Updating legend for feature: ${feature}`);
+                
+                if (!colorSchemes[feature]) {
+                    console.error(`🎨 [LEGEND] ❌ No color scheme found for ${feature}`);
+                    return;
+                }
+                
+                if (feature === 'Scale_Billion_Yuan') {
+                    // 连续变量：发行规模 - 显示梯度
+                    const steps = 5;
+                    const maxValue = 50;
+                    for (let i = 0; i < steps; i++) {
+                        const value = (maxValue * i) / (steps - 1);
+                        const color = colorSchemes[feature](value);
+                        console.log(`🎨 [LEGEND] Scale step ${i}: ${value}亿元 -> ${color}`);
+                        
+                        const item = legend.append("div").attr("class", "legend-item");
+                        item.append("div")
+                            .attr("class", "legend-color")
+                            .style("background", color);
+                        item.append("span").text(value.toFixed(1) + "亿元");
+                    }
+                } else {
+                    // 分类变量：获取所有唯一值并显示
+                    const uniqueValues = [...new Set(cleanedData.map(d => d[feature]))].filter(v => v && v !== 'N/A');
+                    console.log(`🎨 [LEGEND] Values for ${feature}:`, uniqueValues);
+                    
+                    uniqueValues.forEach(value => {
+                        const color = colorSchemes[feature](value);
+                        console.log(`🎨 [LEGEND] ${value} -> ${color}`);
+                        
+                        const item = legend.append("div").attr("class", "legend-item");
+                        item.append("div")
+                            .attr("class", "legend-color")
+                            .style("background", color);
+                        item.append("span").text(value);
+                    });
+                }
+                
+                console.log(`🎨 [LEGEND] Legend updated successfully`);
+            }
+            
+            updateSidebarColors() {
+                // 更新颜色特征的指示器
+                d3.select("#color-features").selectAll(".feature-option").each(function(d, i) {
+                    const featureId = features.color[i].id;
+                    const color = this.getFeatureColor(featureId);
+                    d3.select(this).select(".feature-color").style("background", color);
+                }.bind(this));
+            }
+            
+            showTooltip(event, d) {
+                let content = `<strong>${d.data.name}</strong><br/>`;
+                content += `类型: ${d.data.type}<br/>`;
+                
+                if (d.data.aggregatedData) {
+                    content += `产品数量: ${d.data.aggregatedData.count}<br/>`;
+                    content += `总规模: ${d.data.aggregatedData.totalScale.toFixed(1)}亿元<br/>`;
+                    content += `平均规模: ${d.data.aggregatedData.avgScale.toFixed(1)}亿元<br/>`;
+                }
+                
+                if (d.data.type === 'product' && d.data.data) {
+                    const product = d.data.data;
+                    content = `
+                        <strong>${product.Product_Name}</strong><br/>
+                        发行人: ${product.Issuer}<br/>
+                        规模: ${product.Scale_Billion_Yuan}亿元<br/>
+                        承销商: ${product.Lead_Underwriter}<br/>
+                        状态: ${product.Status}<br/>
+                        资产类型: ${product.Underlying_Asset_Type}<br/>
+                        认证: ${product.Third_Party_Certification}
+                    `;
+                }
+                
+                this.tooltip
+                    .style("opacity", 1)
+                    .html(content)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+            }
+            
+            hideTooltip() {
+                this.tooltip.style("opacity", 0);
+            }
+            
+            setupEventListeners() {
+                // 搜索功能
+                d3.select("#search-input").on("input", (event) => {
+                    this.searchTerm = event.target.value.toLowerCase();
+                    this.highlightSearchResults();
+                });
+                
+                // 窗口大小变化
+                window.addEventListener("resize", () => {
+                    this.width = window.innerWidth - 280;
+                    this.height = window.innerHeight;
+                    this.radius = Math.min(this.width, this.height) / 2 - 150;
+                    
+                    this.svg
+                        .attr("width", this.width)
+                        .attr("height", this.height);
+                    
+                    this.g.attr("transform", `translate(${this.width/2},${this.height/2})`);
+                    
+                    this.render();
+                });
+            }
+            
+            highlightSearchResults() {
+                this.g.selectAll(".node")
+                    .classed("highlighted", d => {
+                        if (!this.searchTerm) return false;
+                        return d.data.name.toLowerCase().includes(this.searchTerm);
+                    });
+            }
+        }
+
+        // 初始化可视化
+        const visualization = new TreeOfLifeVisualization();
+
+        // 更新统计信息
+        const totalProducts = cleanedData.length;
+        const totalScale = cleanedData.reduce((sum, d) => sum + d.Scale_Billion_Yuan, 0);
+        const greenProducts = cleanedData.filter(d => d.Asset_Category === '绿色ABS').length;
+        const uniqueUnderwriters = [...new Set(cleanedData.map(d => d.Lead_Underwriter))].length;
+
+        d3.select("#total-products").text(totalProducts);
+        d3.select("#total-scale").text(totalScale.toFixed(1) + "亿元");
+        d3.select("#green-products").text(greenProducts);
+        d3.select("#underwriter-count").text(uniqueUnderwriters);
+    </script>
+</body>
+</html> 
