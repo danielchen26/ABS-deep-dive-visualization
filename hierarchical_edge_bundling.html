@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中国持有型不动产ABS市场 - 综合关系分析图</title>
+    <title>中国持有型不动产ABS市场 - 多维数据分析仪表板</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         body {
@@ -156,7 +156,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>中国持有型不动产ABS市场<br>综合关系分析图</h1>
+        <h1>中国持有型不动产ABS市场<br>多维数据分析仪表板</h1>
         
         <div class="controls">
             <label>视图模式: 
@@ -178,7 +178,7 @@
         </div>
         
         <div class="dashboard">
-            <div class="chart-container">
+        <div class="chart-container">
                 <div class="chart-title">市场概览</div>
                 <div id="overview-metrics"></div>
             </div>
@@ -1015,18 +1015,18 @@
             }
 
             showTooltip(event, content) {
-                this.tooltip.transition()
-                    .duration(200)
-                    .style("opacity", .9);
+                        this.tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
                 this.tooltip.html(content)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 28) + "px");
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 28) + "px");
             }
 
             hideTooltip() {
-                this.tooltip.transition()
-                    .duration(500)
-                    .style("opacity", 0);
+                        this.tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
             }
             
             // 辅助函数：创建层次数据
