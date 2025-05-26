@@ -27,9 +27,40 @@ def create_circular_network():
     """创建圆形网络关系图"""
     print("🌐 创建圆形网络关系图...")
     
-    # 读取数据
-    df = pd.read_csv('shanghai_real_estate_abs.csv')
-    df.columns = df.columns.str.strip()
+    # 读取新数据
+    df = pd.read_csv('integrated ABS.csv')
+    
+    # 数据预处理
+    df['申报日期'] = pd.to_datetime(df['申报日期'])
+    df['拟发行金额(亿元)'] = pd.to_numeric(df['拟发行金额(亿元)'])
+    
+    # 提取资产类型和绿色认证
+    def extract_asset_type(name):
+        if '数据中心' in name:
+            return '数据中心'
+        elif '高速' in name:
+            return '高速公路'
+        elif '住房租赁' in name:
+            return '住房租赁'
+        elif '商业' in name:
+            return '商业地产'
+        elif '新能源' in name or '火电' in name:
+            return '能源设施'
+        elif '物流' in name:
+            return '物流仓储'
+        elif '产业园' in name:
+            return '产业园区'
+        elif '铁建' in name:
+            return '基础设施'
+        else:
+            return '其他'
+    
+    def is_green_project(name):
+        green_keywords = ['碳中和', '新能源', '绿色', '环保', '清洁']
+        return any(keyword in name for keyword in green_keywords)
+    
+    df['资产类型'] = df['ABS'].apply(extract_asset_type)
+    df['绿色认证'] = df['ABS'].apply(is_green_project)
     
     # 创建图
     fig, ax = plt.subplots(figsize=(24, 24), facecolor=CIRCLE_THEME['bg_color'])
@@ -40,82 +71,48 @@ def create_circular_network():
     
     # 主要类别及其子类别
     categories = {
-        '资产类别': {
-            '绿色ABS': [],
-            '持有型不动产ABS': []
-        },
         '承销商': {},
-        '底层资产': {},
-        '认证机构': {},
-        '发行人地域': {},
-        '发行规模': {
-            '大型(>20亿)': [],
-            '中型(5-20亿)': [],
-            '小型(<5亿)': []
-        }
+        '资产类型': {},
+        '项目状态': {'已发行': [], '已申报': []},
+        '规模分布': {'大型(>30亿)': [], '中型(10-30亿)': [], '小型(<10亿)': []},
+        '绿色认证': {'绿色项目': [], '传统项目': []}
     }
     
     # 处理数据并分类
     for idx, row in df.iterrows():
-        # 资产类别
-        asset_cat = str(row['Asset_Category']).strip()
-        if '绿色' in asset_cat:
-            categories['资产类别']['绿色ABS'].append(row['Product_Name'])
+        product_name = row['ABS']
+        underwriter = row['承销商/管理人']
+        asset_type = row['资产类型']
+        status = row['状态']
+        scale = row['拟发行金额(亿元)']
+        is_green = row['绿色认证']
+        
+        # 承销商分类
+        if underwriter not in categories['承销商']:
+            categories['承销商'][underwriter] = []
+        categories['承销商'][underwriter].append(product_name)
+        
+        # 资产类型分类
+        if asset_type not in categories['资产类型']:
+            categories['资产类型'][asset_type] = []
+        categories['资产类型'][asset_type].append(product_name)
+        
+        # 项目状态分类
+        categories['项目状态'][status].append(product_name)
+        
+        # 规模分类
+        if scale >= 30:
+            categories['规模分布']['大型(>30亿)'].append(product_name)
+        elif scale >= 10:
+            categories['规模分布']['中型(10-30亿)'].append(product_name)
         else:
-            categories['资产类别']['持有型不动产ABS'].append(row['Product_Name'])
+            categories['规模分布']['小型(<10亿)'].append(product_name)
         
-        # 承销商
-        underwriter = str(row['Lead_Underwriter']).strip()
-        if underwriter != 'nan' and underwriter != 'N/A':
-            if underwriter not in categories['承销商']:
-                categories['承销商'][underwriter] = []
-            categories['承销商'][underwriter].append(row['Product_Name'])
-        
-        # 底层资产
-        asset_type = str(row['Underlying_Asset_Type']).strip()
-        if asset_type != 'nan' and asset_type != 'N/A':
-            if asset_type not in categories['底层资产']:
-                categories['底层资产'][asset_type] = []
-            categories['底层资产'][asset_type].append(row['Product_Name'])
-        
-        # 认证机构
-        cert = str(row['Third_Party_Certification']).strip()
-        if cert != 'nan' and cert != 'N/A':
-            if cert not in categories['认证机构']:
-                categories['认证机构'][cert] = []
-            categories['认证机构'][cert].append(row['Product_Name'])
-        
-        # 发行人地域
-        issuer = str(row['Issuer']).strip()
-        region = '其他'
-        if '北京' in issuer:
-            region = '北京'
-        elif '上海' in issuer:
-            region = '上海'
-        elif '广州' in issuer or '广东' in issuer:
-            region = '广东'
-        elif '江苏' in issuer or '无锡' in issuer or '南通' in issuer or '南京' in issuer:
-            region = '江苏'
-        elif '武汉' in issuer:
-            region = '湖北'
-        
-        if region not in categories['发行人地域']:
-            categories['发行人地域'][region] = []
-        categories['发行人地域'][region].append(row['Product_Name'])
-        
-        # 发行规模
-        scale = row['Scale_Billion_Yuan']
-        if pd.notna(scale) and scale != 'N/A':
-            try:
-                scale_val = float(scale)
-                if scale_val >= 20:
-                    categories['发行规模']['大型(>20亿)'].append(row['Product_Name'])
-                elif scale_val >= 5:
-                    categories['发行规模']['中型(5-20亿)'].append(row['Product_Name'])
-                else:
-                    categories['发行规模']['小型(<5亿)'].append(row['Product_Name'])
-            except:
-                pass
+        # 绿色认证分类
+        if is_green:
+            categories['绿色认证']['绿色项目'].append(product_name)
+        else:
+            categories['绿色认证']['传统项目'].append(product_name)
     
     # 计算角度
     main_categories = list(categories.keys())
@@ -250,24 +247,17 @@ def create_circular_network():
     
     # 添加统计信息
     total_products = len(df)
-    total_issuers = df['Issuer'].nunique()
-    total_underwriters = df['Lead_Underwriter'].nunique()
-    
-    # 计算总规模，处理NaN值
-    scale_values = df['Scale_Billion_Yuan'].dropna()
-    total_scale = 0
-    for val in scale_values:
-        try:
-            if str(val) != 'N/A':
-                total_scale += float(val)
-        except:
-            pass
+    total_scale = df['拟发行金额(亿元)'].sum()
+    avg_scale = df['拟发行金额(亿元)'].mean()
+    green_ratio = df['绿色认证'].mean() * 100
+    total_underwriters = df['承销商/管理人'].nunique()
     
     stats_text = f"""市场概况：
 • 产品总数：{total_products}只
-• 发行主体：{total_issuers}家
-• 承销机构：{total_underwriters}家
-• 总规模：{total_scale:.1f}亿元"""
+• 总规模：{total_scale:.1f}亿元
+• 平均规模：{avg_scale:.1f}亿元
+• 绿色认证率：{green_ratio:.1f}%
+• 承销机构：{total_underwriters}家"""
     
     plt.figtext(0.02, 0.15, stats_text, fontsize=12,
                 bbox=dict(boxstyle="round,pad=0.5", 

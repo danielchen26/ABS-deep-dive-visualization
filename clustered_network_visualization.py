@@ -45,59 +45,91 @@ def create_bezier_curve(start, end, curvature=0.2):
 
 def create_circular_network(ax, title):
     """创建圆形网络图（承销商维度）"""
-    # 读取数据
-    df = pd.read_csv('shanghai_real_estate_abs.csv')
-    df.columns = df.columns.str.strip()
+    # 读取新数据
+    df = pd.read_csv('integrated ABS.csv')
+    
+    # 数据预处理
+    df['申报日期'] = pd.to_datetime(df['申报日期'])
+    df['拟发行金额(亿元)'] = pd.to_numeric(df['拟发行金额(亿元)'])
+    
+    # 提取资产类型和绿色认证
+    def extract_asset_type(name):
+        if '数据中心' in name:
+            return '数据中心'
+        elif '高速' in name:
+            return '高速公路'
+        elif '住房租赁' in name:
+            return '住房租赁'
+        elif '商业' in name:
+            return '商业地产'
+        elif '新能源' in name or '火电' in name:
+            return '能源设施'
+        elif '物流' in name:
+            return '物流仓储'
+        elif '产业园' in name:
+            return '产业园区'
+        elif '铁建' in name:
+            return '基础设施'
+        else:
+            return '其他'
+    
+    def is_green_project(name):
+        green_keywords = ['碳中和', '新能源', '绿色', '环保', '清洁']
+        return any(keyword in name for keyword in green_keywords)
+    
+    df['资产类型'] = df['ABS'].apply(extract_asset_type)
+    df['绿色认证'] = df['ABS'].apply(is_green_project)
     
     # 数据分析和聚类
     clusters = {}
     
     for idx, row in df.iterrows():
-        product_name = str(row['Product_Name'])
-        underwriter = str(row['Lead_Underwriter']).strip()
-        category = str(row['Asset_Category']).strip()
-        asset_type = str(row['Underlying_Asset_Type']).strip()
-        scale = row['Scale_Billion_Yuan'] if pd.notna(row['Scale_Billion_Yuan']) else 0
+        product_name = row['ABS']
+        underwriter = row['承销商/管理人']
+        category = '持有型不动产ABS'  # 统一类别
+        asset_type = row['资产类型']
+        scale = row['拟发行金额(亿元)']
         
         # 确定层级
-        try:
-            scale_value = float(scale) if scale != 'N/A' and str(scale) != 'nan' else 0
-        except (ValueError, TypeError):
-            scale_value = 0
+        scale_value = scale if pd.notna(scale) else 0
             
-        if scale_value > 15:
+        if scale_value > 25:
             tier = 'inner'
-        elif scale_value > 8:
+        elif scale_value > 10:
             tier = 'middle'
         else:
             tier = 'outer'
         
-        # 聚类策略 - 按承销商聚类，确保7个cluster
+        # 聚类策略 - 按承销商聚类
         cluster_key = None
-        if underwriter == '中投证券':
-            cluster_key = 'zhongtou'
-        elif underwriter == '中信建投':
-            cluster_key = 'zhongxin'
-        elif underwriter == '华泰证券':
+        if underwriter == '中金公司':
+            cluster_key = 'zhongjin'
+        elif underwriter == '国金资管':
+            cluster_key = 'guojin'
+        elif underwriter == '人保资产':
+            cluster_key = 'renbao'
+        elif underwriter == '华泰资管':
             cluster_key = 'huatai'
+        elif underwriter == '中信证券':
+            cluster_key = 'zhongxin'
         elif underwriter == '平安证券':
             cluster_key = 'pingan'
-        elif underwriter in ['兴业证券', '开源证券', '中山证券', '农银汇理']:
-            cluster_key = 'major_underwriters'
-        elif underwriter in ['中银证券', '东吴证券', '渤海汇金', '民生证券', '安信证券', '广发证券', '德邦证券', '国联证券']:
-            cluster_key = 'other_underwriters'
-        elif underwriter not in ['nan', 'N/A'] and underwriter and underwriter.strip():
-            cluster_key = 'misc_underwriters'
+        elif underwriter == '泰康资产':
+            cluster_key = 'taikang'
+        elif underwriter == '太平洋资产':
+            cluster_key = 'taipingyang'
         else:
-            # 对于没有承销商信息的，按资产类型分类
-            if '绿色' in category:
-                cluster_key = 'green_assets'
-            elif '数据中心' in asset_type:
-                cluster_key = 'data_center'
-            elif '住房' in asset_type or '住宅' in asset_type:
-                cluster_key = 'housing_assets'
+            # 按资产类型分类
+            if asset_type == '高速公路':
+                cluster_key = 'highway'
+            elif asset_type == '数据中心':
+                cluster_key = 'datacenter'
+            elif asset_type == '能源设施':
+                cluster_key = 'energy'
+            elif asset_type == '商业地产':
+                cluster_key = 'commercial'
             else:
-                cluster_key = 'other_assets'
+                cluster_key = 'others'
         
         cluster_full_key = f"{cluster_key}_{tier}"
         
@@ -109,9 +141,9 @@ def create_circular_network(ax, title):
             'underwriter': underwriter,
             'category': category,
             'asset_type': asset_type,
-            'issuer': str(row['Issuer']),
+            'status': row['状态'],
             'scale': scale_value,
-            'certification': str(row['Third_Party_Certification']),
+            'green': row['绿色认证'],
             'tier': tier,
             'cluster': cluster_key
         })
@@ -119,9 +151,9 @@ def create_circular_network(ax, title):
     # 同心圆层级布局
     tier_radii = {'inner': 2.5, 'middle': 4.5, 'outer': 6.5}
     tier_labels = {
-        'inner': '核心层 (>15亿元)',
-        'middle': '中间层 (8-15亿元)', 
-        'outer': '外围层 (<8亿元)'
+        'inner': '核心层 (>25亿元)',
+        'middle': '中间层 (10-25亿元)', 
+        'outer': '外围层 (<10亿元)'
     }
     
     # 计算cluster分布
