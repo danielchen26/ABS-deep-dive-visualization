@@ -504,6 +504,7 @@
                 this.createTreeStructure();
                 this.render();
                 this.setupEventListeners();
+                this.updateFilterStatus(); // 初始化过滤状态显示
             }
             
             setupSidebar() {
@@ -563,7 +564,7 @@
                     const option = filterContainer.append("div")
                         .attr("class", "feature-option");
                     
-                    option.append("div")
+                    const colorIndicator = option.append("div")
                         .attr("class", "feature-color")
                         .style("background", "#e2e8f0");
                     
@@ -574,12 +575,27 @@
                     option.on("click", () => {
                         const isSelected = option.classed("selected");
                         filterContainer.selectAll(".feature-option").classed("selected", false);
+                        
+                        // 重置所有过滤器颜色指示器
+                        filterContainer.selectAll(".feature-color")
+                            .style("background", "#e2e8f0");
+                        
                         if (!isSelected) {
                             option.classed("selected", true);
                             this.currentFilter = feature.id;
+                            console.log(`🔍 [FILTER] Filter activated: ${feature.id}`);
+                            
+                            // 设置激活状态的颜色
+                            colorIndicator.style("background", "#f59e0b");
                         } else {
                             this.currentFilter = null;
+                            console.log(`🔍 [FILTER] Filter deactivated`);
                         }
+                        
+                        // 更新过滤器状态显示
+                        this.updateFilterStatus();
+                        
+                        // 重新渲染可视化
                         this.updateVisualization();
                     });
                 });
@@ -672,27 +688,96 @@
                     children: []
                 };
                 
+                // 应用过滤器获取过滤后的数据
+                const filteredData = this.getFilteredData();
+                console.log(`🔍 [FILTER] Using ${filteredData.length} products after filtering (original: ${cleanedData.length})`);
+                
                 const feature = this.currentColorFeature;
                 
                 if (feature === 'Asset_Category') {
-                    this.createHierarchyByAssetCategory(hierarchy);
+                    this.createHierarchyByAssetCategory(hierarchy, filteredData);
                 } else if (feature === 'Lead_Underwriter') {
-                    this.createHierarchyByUnderwriter(hierarchy);
+                    this.createHierarchyByUnderwriter(hierarchy, filteredData);
                 } else if (feature === 'Underlying_Asset_Type') {
-                    this.createHierarchyByAssetType(hierarchy);
+                    this.createHierarchyByAssetType(hierarchy, filteredData);
                 } else if (feature === 'Third_Party_Certification') {
-                    this.createHierarchyByCertification(hierarchy);
+                    this.createHierarchyByCertification(hierarchy, filteredData);
                 } else if (feature === 'Status') {
-                    this.createHierarchyByStatus(hierarchy);
+                    this.createHierarchyByStatus(hierarchy, filteredData);
                 } else {
-                    this.createHierarchyByAssetCategory(hierarchy);
+                    this.createHierarchyByAssetCategory(hierarchy, filteredData);
                 }
                 
                 this.hierarchyData = hierarchy;
             }
             
-            createHierarchyByAssetCategory(hierarchy) {
-                const assetGroups = d3.group(cleanedData, d => d.Asset_Category);
+            getFilteredData() {
+                // 如果没有设置过滤器，返回所有数据
+                if (!this.currentFilter) {
+                    return cleanedData;
+                }
+                
+                console.log(`🔍 [FILTER] Applying filter: ${this.currentFilter}`);
+                
+                // 根据过滤器类型进行过滤
+                let filteredData = cleanedData;
+                
+                if (this.currentFilter === 'Asset_Category') {
+                    // 按资产类别过滤 - 只显示持有型不动产ABS
+                    filteredData = cleanedData.filter(d => d.Asset_Category === '持有型不动产ABS');
+                } else if (this.currentFilter === 'Lead_Underwriter') {
+                    // 按承销商过滤 - 只显示主要承销商的产品
+                    const majorUnderwriters = ['中金公司', '国金资管', '人保资产'];
+                    filteredData = cleanedData.filter(d => majorUnderwriters.includes(d.Lead_Underwriter));
+                } else if (this.currentFilter === 'Status') {
+                    // 按发行状态过滤 - 只显示已发行的产品
+                    filteredData = cleanedData.filter(d => d.Status === '已发行');
+                } else if (this.currentFilter === 'Underlying_Asset_Type') {
+                    // 按底层资产过滤 - 只显示主要资产类型
+                    const majorAssetTypes = ['高速公路', '数据中心', '商业地产', '能源设施'];
+                    filteredData = cleanedData.filter(d => majorAssetTypes.includes(d.Underlying_Asset_Type));
+                }
+                
+                console.log(`🔍 [FILTER] Filtered from ${cleanedData.length} to ${filteredData.length} products`);
+                return filteredData;
+            }
+            
+            updateFilterStatus() {
+                // 更新统计信息以反映过滤后的数据
+                const filteredData = this.getFilteredData();
+                const totalProducts = filteredData.length;
+                const totalScale = filteredData.reduce((sum, d) => sum + d.Scale_Billion_Yuan, 0);
+                const issuedProducts = filteredData.filter(d => d.Status === '已发行').length;
+                const uniqueUnderwriters = [...new Set(filteredData.map(d => d.Lead_Underwriter))].length;
+
+                d3.select("#total-products").text(totalProducts);
+                d3.select("#total-scale").text(totalScale.toFixed(1) + "亿元");
+                d3.select("#issued-products").text(issuedProducts);
+                d3.select("#underwriter-count").text(uniqueUnderwriters);
+                
+                // 如果有过滤器激活，显示过滤状态
+                const filterStatus = this.currentFilter ? 
+                    `已过滤 (${features.filter.find(f => f.id === this.currentFilter)?.name})` : 
+                    '无过滤';
+                
+                // 在统计区域添加过滤状态指示
+                let statusElement = d3.select("#filter-status");
+                if (statusElement.empty()) {
+                    statusElement = d3.select(".stats-section").append("div")
+                        .attr("id", "filter-status")
+                        .attr("class", "stat-item")
+                        .style("font-weight", "bold")
+                        .style("color", this.currentFilter ? "#f59e0b" : "#6b7280");
+                }
+                
+                statusElement.html(`
+                    <span class="stat-label">过滤状态</span>
+                    <span class="stat-value">${filterStatus}</span>
+                `).style("color", this.currentFilter ? "#f59e0b" : "#6b7280");
+            }
+            
+            createHierarchyByAssetCategory(hierarchy, data = cleanedData) {
+                const assetGroups = d3.group(data, d => d.Asset_Category);
                 
                 assetGroups.forEach((products, assetCategory) => {
                     const assetNode = {
@@ -729,8 +814,8 @@
                 });
             }
             
-            createHierarchyByUnderwriter(hierarchy) {
-                const underwriterGroups = d3.group(cleanedData, d => d.Lead_Underwriter);
+            createHierarchyByUnderwriter(hierarchy, data = cleanedData) {
+                const underwriterGroups = d3.group(data, d => d.Lead_Underwriter);
                 
                 underwriterGroups.forEach((products, underwriter) => {
                     const underwriterNode = {
@@ -767,8 +852,8 @@
                 });
             }
             
-            createHierarchyByAssetType(hierarchy) {
-                const assetTypeGroups = d3.group(cleanedData, d => d.Underlying_Asset_Type);
+            createHierarchyByAssetType(hierarchy, data = cleanedData) {
+                const assetTypeGroups = d3.group(data, d => d.Underlying_Asset_Type);
                 
                 assetTypeGroups.forEach((products, assetType) => {
                     const assetTypeNode = {
@@ -805,8 +890,8 @@
                 });
             }
             
-            createHierarchyByCertification(hierarchy) {
-                const certGroups = d3.group(cleanedData, d => d.Third_Party_Certification);
+            createHierarchyByCertification(hierarchy, data = cleanedData) {
+                const certGroups = d3.group(data, d => d.Third_Party_Certification);
                 
                 certGroups.forEach((products, certification) => {
                     const certNode = {
@@ -843,8 +928,8 @@
                 });
             }
             
-            createHierarchyByStatus(hierarchy) {
-                const statusGroups = d3.group(cleanedData, d => d.Status);
+            createHierarchyByStatus(hierarchy, data = cleanedData) {
+                const statusGroups = d3.group(data, d => d.Status);
                 
                 statusGroups.forEach((products, status) => {
                     const statusNode = {
